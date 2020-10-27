@@ -9,6 +9,7 @@ Add '-static' flag
 
 #include <windows.h>
 #include <iostream>
+#include <stdio.h>
 
 using namespace std;
 
@@ -44,12 +45,56 @@ float GetMemoryLoad(){
     return memStat.dwMemoryLoad;
 }
 
-int main(){
-    while(true){
-        cout<<"CPU usage: "<<int(GetCPULoad())<<"%"<<endl;
-        cout<<"Memory usage: "<<int(GetMemoryLoad())<<"%"<<endl;
-        Sleep(1000);
-        system("cls");
+HANDLE hSerial;
+char sPortName[100];
+char msg[2];
+DWORD nBytesWritten;
+
+void TranslateError(DWORD error){
+    switch(error){
+    case ERROR_FILE_NOT_FOUND:
+        cout<<">>Error: port not exists"<<endl;
+        break;
+    case ERROR_ACCESS_DENIED:
+        cout<<">>Error: access denied"<<endl;
+        break;
+    default:
+        cout<<">>Error: "<<GetLastError()<<endl;
     }
+}
+
+int main(){
+    cout<<"Enter port name: ";
+    cin>>sPortName;
+
+    hSerial = CreateFile(sPortName, GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if(hSerial == INVALID_HANDLE_VALUE){
+        cout<<">>Invalid handle!"<<endl;
+        TranslateError(GetLastError());
+        return 0;
+    }
+    cout<<"Port oppened!"<<endl;
+
+    DCB dcb;
+    ZeroMemory(&dcb, sizeof(DCB));
+    dcb.BaudRate = CBR_9600;
+    dcb.ByteSize = 8;
+    dcb.StopBits = ONESTOPBIT;
+    dcb.Parity   = NOPARITY;
+
+    if(!SetCommState(hSerial, &dcb)){
+        cout<<">>Error setting port state!"<<endl;
+        TranslateError(GetLastError());
+    }
+
+    while(true){
+        msg[0] = int(GetCPULoad());
+        msg[1] = int(GetMemoryLoad());
+        WriteFile(hSerial, msg, 2, &nBytesWritten, NULL);
+        Sleep(1000);
+    }
+
+    CloseHandle(hSerial);
+
     return 0;
 }
